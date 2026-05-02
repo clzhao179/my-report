@@ -1334,7 +1334,7 @@ table tbody tr:nth-child(even) td:first-child {
                 class="doc-frame"
                 loading="eager"
                 referrerpolicy="no-referrer"
-                src="20260506_wealth_20260503_020540_assets/01_report-review.html" data-src="20260506_wealth_20260503_020540_assets/01_report-review.html"
+                src="20260506_wealth_20260503_021955_assets/01_report-review.html" data-src="20260506_wealth_20260503_021955_assets/01_report-review.html"
                 data-report-anchor="report-review"
                 data-report-label="A股复盘笔记"
                 onload="handlePortalFrameLoad(this)">
@@ -1347,7 +1347,7 @@ table tbody tr:nth-child(even) td:first-child {
                 class="doc-frame"
                 loading="lazy"
                 referrerpolicy="no-referrer"
-                data-src="20260506_wealth_20260503_020540_assets/02_report-picks.html"
+                data-src="20260506_wealth_20260503_021955_assets/02_report-picks.html"
                 data-report-anchor="report-picks"
                 data-report-label="选股结果提取明细"
                 onload="handlePortalFrameLoad(this)">
@@ -1360,7 +1360,7 @@ table tbody tr:nth-child(even) td:first-child {
                 class="doc-frame"
                 loading="lazy"
                 referrerpolicy="no-referrer"
-                src="20260506_wealth_20260503_020540_assets/03_report-stocks-selection.html" data-src="20260506_wealth_20260503_020540_assets/03_report-stocks-selection.html"
+                src="20260506_wealth_20260503_021955_assets/03_report-stocks-selection.html" data-src="20260506_wealth_20260503_021955_assets/03_report-stocks-selection.html"
                 data-report-anchor="report-stocks-selection"
                 data-report-label="概念板块双模式选股"
                 onload="handlePortalFrameLoad(this)">
@@ -3406,22 +3406,133 @@ table tbody tr:nth-child(even) td:first-child {
       }catch(e){}
     });
   }
+  function frameReadyV489(fr){
+    try{
+      if (!fr) return false;
+
+      if (typeof isFrameReady === 'function'){
+        try{
+          if (isFrameReady(fr)) return true;
+        }catch(e){}
+      }
+
+      var d = fr.contentDocument || (fr.contentWindow && fr.contentWindow.document);
+      if (!d || !d.body) return false;
+      if (d.readyState === 'loading') return false;
+
+      var txt = ((d.title || '') + ' ' + (d.body.innerText || d.body.textContent || '')).replace(/\s+/g, ' ').trim();
+      if (txt && txt.length > 80) return true;
+
+      if (d.querySelector && d.querySelector('h1,h2,h3,table,.content,.article,.markdown-body,.report-content')) return true;
+
+      return false;
+    }catch(e){
+      return false;
+    }
+  }
+
+  function resizeFrameV489(fr){
+    try{
+      if (typeof resizeFrame === 'function') resizeFrame(fr);
+    }catch(e){}
+  }
+
+  function rescueHiddenLazyFrameV489(fr, reason){
+    if (!fr) return;
+
+    var ds = fr.getAttribute('data-src') || '';
+    var src = fr.getAttribute('src') || '';
+    var target = (src && src !== 'about:blank') ? src : ds;
+
+    if (!target) return;
+
+    // 核心：被 display:none 隐藏过的 lazy iframe，激活后必须改成 eager，并必要时重刷 src。
+    try{
+      fr.setAttribute('loading', 'eager');
+      fr.dataset.v489Reason = reason || '';
+    }catch(e){}
+
+    if (!src || src === 'about:blank'){
+      fr.setAttribute('src', target);
+      setTimeout(function(){ resizeFrameV489(fr); }, 80);
+      setTimeout(function(){ resizeFrameV489(fr); }, 450);
+      return;
+    }
+
+    // 如果已经真正加载完成，不要重复刷新，避免影响正常页面。
+    if (frameReadyV489(fr)){
+      resizeFrameV489(fr);
+      return;
+    }
+
+    // 同一轮激活只做一次救援，避免无限 reload。
+    var rescueKey = String(reason || '') + '|' + String(target || '');
+    if (fr.dataset.v489RescueKey === rescueKey){
+      return;
+    }
+    fr.dataset.v489RescueKey = rescueKey;
+
+    [80, 260, 650, 1300].forEach(function(ms, idx){
+      setTimeout(function(){
+        try{
+          if (frameReadyV489(fr)){
+            resizeFrameV489(fr);
+            return;
+          }
+
+          // 第 2 次和第 4 次检查仍未 ready，则强制重刷 iframe。
+          if (idx === 1 || idx === 3){
+            var cur = fr.getAttribute('src') || '';
+            if (cur && cur !== 'about:blank'){
+              fr.removeAttribute('src');
+              setTimeout(function(){
+                fr.setAttribute('src', target);
+                resizeFrameV489(fr);
+              }, 30);
+            }else{
+              fr.setAttribute('src', target);
+              resizeFrameV489(fr);
+            }
+          }else{
+            resizeFrameV489(fr);
+          }
+        }catch(e){}
+      }, ms);
+    });
+  }
+
   function ensureFrameLoaded(sec, reason){
     var fr = frameOf(sec);
     if (!fr) return null;
+
     bind404Fallback(fr);
+
     var src = fr.getAttribute('src') || '';
     var ds = fr.getAttribute('data-src') || '';
+
     if ((!src || src === 'about:blank') && ds){
       fr.dataset.v480Reason = reason || '';
+      fr.setAttribute('loading', 'eager');
       fr.setAttribute('src', ds);
-      // 强制浏览器重新计算 iframe 高度与内容区
-      setTimeout(function(){ try{ if (typeof resizeFrame === 'function') resizeFrame(fr); }catch(e){} }, 80);
-      setTimeout(function(){ try{ if (typeof resizeFrame === 'function') resizeFrame(fr); }catch(e){} }, 450);
+
+      setTimeout(function(){ resizeFrameV489(fr); }, 80);
+      setTimeout(function(){ resizeFrameV489(fr); }, 450);
+      setTimeout(function(){ rescueHiddenLazyFrameV489(fr, reason || 'missing-src-rescue'); }, 120);
       return fr;
     }
+
+    // V489：即使 iframe 已经有 src，只要它是从隐藏 section 激活出来的，也要检查是否真正加载完成。
+    // 这正是第三页白框的关键：src 存在，但 hidden + lazy 没有真正渲染。
+    if (
+      sec === 'report-stocks-selection' ||
+      /topnav|subnav|mutation|active|hash|click|delay|prewarm|window-load/i.test(String(reason || ''))
+    ){
+      rescueHiddenLazyFrameV489(fr, reason || 'active-rescue');
+    }
+
     return fr;
   }
+
   window.ensurePortalFrameLoadedV480 = ensureFrameLoaded;
 
   function ensureActiveFrames(){
