@@ -1,4 +1,4 @@
 20260506_财富密码_20260503_022030.html
 source_html=20260506_财富密码_20260503_022030.html
-source_assets=
+source_assets=20260506_wealth_20260503_022030_assets
 published_as=index.html
